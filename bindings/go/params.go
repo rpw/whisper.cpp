@@ -1,8 +1,5 @@
 package whisper
 
-// This file defines the whisper_token, whisper_token_data and whisper_full_params
-// structures, which are used by the whisper_full() function.
-
 import (
 	"fmt"
 )
@@ -50,7 +47,12 @@ func (p *Params) SetSpeedup(v bool) {
 	p.speed_up = toBool(v)
 }
 
+// Set language id
 func (p *Params) SetLanguage(lang int) error {
+	if lang == -1 {
+		p.language = nil
+		return nil
+	}
 	str := C.whisper_lang_str(C.int(lang))
 	if str == nil {
 		return ErrInvalidLanguage
@@ -60,6 +62,7 @@ func (p *Params) SetLanguage(lang int) error {
 	return nil
 }
 
+// Get language id
 func (p *Params) Language() int {
 	if p.language == nil {
 		return -1
@@ -67,16 +70,44 @@ func (p *Params) Language() int {
 	return int(C.whisper_lang_id(p.language))
 }
 
+// Threads available
+func (p *Params) Threads() int {
+	return int(p.n_threads)
+}
+
+// Set number of threads to use
 func (p *Params) SetThreads(threads int) {
 	p.n_threads = C.int(threads)
 }
 
+// Set start offset in ms
 func (p *Params) SetOffset(offset_ms int) {
 	p.offset_ms = C.int(offset_ms)
 }
 
+// Set audio duration to process in ms
 func (p *Params) SetDuration(duration_ms int) {
 	p.duration_ms = C.int(duration_ms)
+}
+
+// Set timestamp token probability threshold (~0.01)
+func (p *Params) SetTokenThreshold(t float32) {
+	p.thold_pt = C.float(t)
+}
+
+// Set timestamp token sum probability threshold (~0.01)
+func (p *Params) SetTokenSumThreshold(t float32) {
+	p.thold_ptsum = C.float(t)
+}
+
+// Set max segment length in characters
+func (p *Params) SetMaxSegmentLength(n int) {
+	p.max_len = C.int(n)
+}
+
+// Set max tokens per segment (0 = no limit)
+func (p *Params) SetMaxTokensPerSegment(n int) {
+	p.max_tokens = C.int(n)
 }
 
 ///////////////////////////////////////////////////////////////////////////////

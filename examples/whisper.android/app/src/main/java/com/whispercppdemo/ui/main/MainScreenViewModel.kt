@@ -64,16 +64,21 @@ class MainScreenViewModel(private val application: Application) : ViewModel() {
     private suspend fun copyAssets() = withContext(Dispatchers.IO) {
         modelsPath.mkdirs()
         samplesPath.mkdirs()
-        application.copyData("models", modelsPath, ::printMessage)
+        //application.copyData("models", modelsPath, ::printMessage)
         application.copyData("samples", samplesPath, ::printMessage)
         printMessage("All data copied to working directory.\n")
     }
 
     private suspend fun loadBaseModel() = withContext(Dispatchers.IO) {
         printMessage("Loading model...\n")
-        val firstModel = modelsPath.listFiles()!!.first()
-        whisperContext = WhisperContext.createContext(firstModel.absolutePath)
-        printMessage("Loaded model ${firstModel.name}.\n")
+        val models = application.assets.list("models/")
+        if (models != null) {
+            whisperContext = WhisperContext.createContextFromAsset(application.assets, "models/" + models[0])
+            printMessage("Loaded model ${models[0]}.\n")
+        }
+
+        //val firstModel = modelsPath.listFiles()!!.first()
+        //whisperContext = WhisperContext.createContextFromFile(firstModel.absolutePath)
     }
 
     fun transcribeSample() = viewModelScope.launch {

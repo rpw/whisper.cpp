@@ -8,6 +8,7 @@
 #include <SDL.h>
 #include <SDL_audio.h>
 
+#include <atomic>
 #include <cassert>
 #include <cstdio>
 #include <string>
@@ -144,8 +145,8 @@ private:
     int m_len_ms = 0;
     int m_sample_rate = 0;
 
-    bool       m_running = false;
-    std::mutex m_mutex;
+    std::atomic_bool m_running;
+    std::mutex       m_mutex;
 
     std::vector<float> m_audio;
     std::vector<float> m_audio_new;
@@ -155,6 +156,8 @@ private:
 
 audio_async::audio_async(int len_ms) {
     m_len_ms = len_ms;
+
+    m_running = false;
 }
 
 audio_async::~audio_async() {
@@ -420,20 +423,21 @@ int main(int argc, char ** argv) {
         return 1;
     }
 
-    params.keep_ms = std::min(params.keep_ms, params.step_ms); // cannot be more than step_ms
+    params.keep_ms   = std::min(params.keep_ms,   params.step_ms);
+    params.length_ms = std::max(params.length_ms, params.step_ms);
 
     const int n_samples_step = (params.step_ms  *1e-3)*WHISPER_SAMPLE_RATE;
     const int n_samples_len  = (params.length_ms*1e-3)*WHISPER_SAMPLE_RATE;
     const int n_samples_keep = (params.keep_ms  *1e-3)*WHISPER_SAMPLE_RATE;
     const int n_samples_30s  = (30000           *1e-3)*WHISPER_SAMPLE_RATE;
 
-    const int n_new_line = params.length_ms / params.step_ms - 1; // number of steps to print new line
-
     const bool use_vad = n_samples_step <= 0; // sliding window mode uses VAD
 
-    params.no_timestamps = !use_vad;
-    params.no_context    = use_vad;
-    params.max_tokens    = 0;
+    const int n_new_line = !use_vad ? std::max(1, params.length_ms / params.step_ms - 1) : 1; // number of steps to print new line
+
+    params.no_timestamps  = !use_vad;
+    params.no_context    |= use_vad;
+    params.max_tokens     = 0;
 
     // init audio
 
@@ -453,10 +457,10 @@ int main(int argc, char ** argv) {
         exit(0);
     }
 
-    struct whisper_context * ctx = whisper_init(params.model.c_str());
+    struct whisper_context * ctx = whisper_init_from_file(params.model.c_str());
 
     std::vector<float> pcmf32    (n_samples_30s, 0.0f);
-    std::vector<float> pcmf32_old(n_samples_30s, 0.0f);
+    std::vector<float> pcmf32_old;
     std::vector<float> pcmf32_new(n_samples_30s, 0.0f);
 
     std::vector<whisper_token> prompt_tokens;
@@ -483,7 +487,7 @@ int main(int argc, char ** argv) {
                 params.no_timestamps ? 0 : 1);
 
         if (!use_vad) {
-            fprintf(stderr, "%s: n_new_line = %d\n", __func__, n_new_line);
+            fprintf(stderr, "%s: n_new_line = %d, no_context = %d\n", __func__, n_new_line, params.no_context);
         } else {
             fprintf(stderr, "%s: using VAD, will transcribe on speech activity\n", __func__);
         }
@@ -611,6 +615,9 @@ int main(int argc, char ** argv) {
 
             wparams.audio_ctx        = params.audio_ctx;
             wparams.speed_up         = params.speed_up;
+
+            // disable temperature fallback
+            wparams.temperature_inc  = -1.0f;
 
             wparams.prompt_tokens    = params.no_context ? nullptr : prompt_tokens.data();
             wparams.prompt_n_tokens  = params.no_context ? 0       : prompt_tokens.size();

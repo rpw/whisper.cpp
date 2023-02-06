@@ -9,8 +9,7 @@ import (
 // CGO
 
 /*
-#cgo CFLAGS: -I${SRCDIR}/../..
-#cgo LDFLAGS: -L${SRCDIR}/build -lwhisper -lm -lstdc++
+#cgo LDFLAGS: -lwhisper -lm -lstdc++
 #cgo darwin LDFLAGS: -framework Accelerate
 #include <whisper.h>
 #include <stdlib.h>
@@ -92,7 +91,7 @@ var (
 func Whisper_init(path string) *Context {
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
-	if ctx := C.whisper_init(cPath); ctx != nil {
+	if ctx := C.whisper_init_from_file(cPath); ctx != nil {
 		return (*Context)(ctx)
 	} else {
 		return nil
@@ -148,16 +147,6 @@ func (ctx *Context) Whisper_decode(tokens []Token, past, threads int) error {
 	}
 }
 
-// whisper_sample_best() returns the token with the highest probability
-func (ctx *Context) Whisper_sample_best() TokenData {
-	return TokenData(C.whisper_sample_best((*C.struct_whisper_context)(ctx)))
-}
-
-// whisper_sample_timestamp() returns the most probable timestamp token
-func (ctx *Context) Whisper_sample_timestamp(is_initial bool) TokenData {
-	return TokenData(C.whisper_sample_timestamp((*C.struct_whisper_context)(ctx), C.bool(is_initial)))
-}
-
 // Convert the provided text into tokens. The tokens pointer must be large enough to hold the resulting tokens.
 // Returns the number of tokens on success
 func (ctx *Context) Whisper_tokenize(text string, tokens []Token) (int, error) {
@@ -171,6 +160,10 @@ func (ctx *Context) Whisper_tokenize(text string, tokens []Token) (int, error) {
 }
 
 // Return the id of the specified language, returns -1 if not found
+// Examples:
+//
+//	"de" -> 2
+//	"german" -> 2
 func (ctx *Context) Whisper_lang_id(lang string) int {
 	return int(C.whisper_lang_id(C.CString(lang)))
 }
@@ -209,6 +202,10 @@ func (ctx *Context) Whisper_n_vocab() int {
 
 func (ctx *Context) Whisper_n_text_ctx() int {
 	return int(C.whisper_n_text_ctx((*C.struct_whisper_context)(ctx)))
+}
+
+func (ctx *Context) Whisper_n_audio_ctx() int {
+	return int(C.whisper_n_audio_ctx((*C.struct_whisper_context)(ctx)))
 }
 
 func (ctx *Context) Whisper_is_multilingual() int {

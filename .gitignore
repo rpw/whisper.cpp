@@ -1,4 +1,5 @@
 *.o
+*.a
 .cache/
 .vs/
 .vscode/
@@ -8,6 +9,7 @@ build/
 build-em/
 build-debug/
 build-release/
+build-static/
 build-sanitize-addr/
 build-sanitize-thread/
 
@@ -17,7 +19,9 @@ build-sanitize-thread/
 /talk
 /bench
 
+arm_neon.h
 sync.sh
+libwhisper.a
 libwhisper.so
 compile_commands.json
 

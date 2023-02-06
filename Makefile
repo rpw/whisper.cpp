@@ -10,6 +10,9 @@ ifndef UNAME_M
 UNAME_M := $(shell uname -m)
 endif
 
+CCV := $(shell $(CC) --version | head -n 1)
+CXXV := $(shell $(CXX) --version | head -n 1)
+
 # Mac OS + Arm can report x86_64
 # ref: https://github.com/ggerganov/whisper.cpp/issues/66#issuecomment-1282546789
 ifeq ($(UNAME_S),Darwin)
@@ -55,8 +58,11 @@ endif
 #       feel free to update the Makefile for your architecture and send a pull request or issue
 ifeq ($(UNAME_M),$(filter $(UNAME_M),x86_64 i686))
 	ifeq ($(UNAME_S),Darwin)
-		CFLAGS += -mfma -mf16c
+		CFLAGS += -mf16c
 		AVX1_M := $(shell sysctl machdep.cpu.features)
+		ifneq (,$(findstring FMA,$(AVX1_M)))
+			CFLAGS += -mfma
+		endif
 		ifneq (,$(findstring AVX1.0,$(AVX1_M)))
 			CFLAGS += -mavx
 		endif
@@ -80,6 +86,10 @@ ifeq ($(UNAME_M),$(filter $(UNAME_M),x86_64 i686))
 		F16C_M := $(shell grep "f16c " /proc/cpuinfo)
 		ifneq (,$(findstring f16c,$(F16C_M)))
 			CFLAGS += -mf16c
+		endif
+		SSE3_M := $(shell grep "sse3 " /proc/cpuinfo)
+		ifneq (,$(findstring sse3,$(SSE3_M)))
+			CFLAGS += -msse3
 		endif
 	else ifeq ($(UNAME_S),Haiku)
 		AVX1_M := $(shell sysinfo -cpu | grep "AVX ")
@@ -105,10 +115,14 @@ endif
 ifeq ($(UNAME_M),amd64)
 	CFLAGS += -mavx -mavx2 -mfma -mf16c
 endif
-ifeq ($(UNAME_M),ppc64le)
+ifneq ($(filter ppc64%,$(UNAME_M)),)
 	POWER9_M := $(shell grep "POWER9" /proc/cpuinfo)
 	ifneq (,$(findstring POWER9,$(POWER9_M)))
 		CFLAGS += -mpower9-vector
+	endif
+	# Require c++23's std::byteswap for big-endian support.
+	ifeq ($(UNAME_M),ppc64)
+		CXXFLAGS += -std=c++23 -DGGML_BIG_ENDIAN
 	endif
 endif
 ifndef WHISPER_NO_ACCELERATE
@@ -123,8 +137,8 @@ ifdef WHISPER_OPENBLAS
 	LDFLAGS += -lopenblas
 endif
 ifdef WHISPER_GPROF
-	CFLAGS  += -pg
-	CXXFLAGS  += -pg
+	CFLAGS   += -pg
+	CXXFLAGS += -pg
 endif
 ifneq ($(filter aarch64%,$(UNAME_M)),)
 endif
@@ -140,6 +154,21 @@ ifneq ($(filter armv8%,$(UNAME_M)),)
 	# Raspberry Pi 4
 	CFLAGS += -mfp16-format=ieee -mno-unaligned-access
 endif
+
+#
+# Print build information
+#
+
+$(info I whisper.cpp build info: )
+$(info I UNAME_S:  $(UNAME_S))
+$(info I UNAME_P:  $(UNAME_P))
+$(info I UNAME_M:  $(UNAME_M))
+$(info I CFLAGS:   $(CFLAGS))
+$(info I CXXFLAGS: $(CXXFLAGS))
+$(info I LDFLAGS:  $(LDFLAGS))
+$(info I CC:       $(CCV))
+$(info I CXX:      $(CXXV))
+$(info )
 
 default: main
 
